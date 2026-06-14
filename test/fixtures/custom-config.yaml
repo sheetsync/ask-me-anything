@@ -1,0 +1,11 @@
+provider: codex
+codex_binary: codex
+default_verb: ask
+model: gpt-5.4-mini
+reasoning_effort: high
+search: true
+ephemeral: true
+skip_git_repo_check: true
+color: never
+codex_extra_args:
+  - --ignore-rules

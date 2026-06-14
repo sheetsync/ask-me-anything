@@ -1,0 +1,3 @@
+(library
+ (name ask_me_anything)
+ (libraries cmdliner unix yaml))

@@ -1,0 +1,4 @@
+(executable
+ (public_name ask)
+ (name main)
+ (libraries ask_me_anything))
