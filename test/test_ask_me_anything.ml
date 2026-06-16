@@ -3,7 +3,9 @@
 module Command = Ask_me_anything.Codex_command
 module Config = Ask_me_anything.Config
 module Domain = Ask_me_anything.Domain
+module Boundary = Ask_me_anything.Argument_boundary
 module Request = Ask_me_anything.Request
+module Syntax_help = Ask_me_anything.Syntax_help
 
 let fail message = raise (Failure message)
 
@@ -17,6 +19,9 @@ let assert_equal_string_list expected actual =
 let assert_equal_string expected actual =
   if expected <> actual then
     fail (Printf.sprintf "expected %S, got %S" expected actual)
+
+let assert_equal_string_array expected actual =
+  assert_equal_string_list (Array.to_list expected) (Array.to_list actual)
 
 let assert_ok = function Ok value -> value | Error message -> fail message
 
@@ -201,6 +206,45 @@ let request_when_config_omits_model_uses_gpt54_and_medium_reasoning () =
   assert (request.reasoning_effort = Domain.Reasoning_effort.Medium);
   assert (request.prompt = Some "hello")
 
+let syntax_help_when_rendered_includes_usage_and_examples () =
+  assert (
+    String.starts_with ~prefix:"Usage: ask [OPTIONS] MESSAGE..."
+      Syntax_help.text);
+  assert (String.contains Syntax_help.text '\n');
+  assert (String.contains Syntax_help.text '`')
+
+let argument_boundary_when_first_plain_token_seen_captures_rest_as_prompt () =
+  let boundary =
+    Boundary.split
+      [|
+        "ask";
+        "--model";
+        "gpt-5.4-mini";
+        "explain";
+        "--not-an-ask-option";
+        "please";
+      |]
+  in
+  assert_equal_string_array
+    [| "ask"; "--model"; "gpt-5.4-mini" |]
+    boundary.option_argv;
+  assert_equal_string_list
+    [ "explain"; "--not-an-ask-option"; "please" ]
+    boundary.message_words
+
+let argument_boundary_when_double_dash_seen_captures_following_prompt () =
+  let boundary =
+    Boundary.split [| "ask"; "--dry-run"; "--"; "--literal"; "prompt" |]
+  in
+  assert_equal_string_array [| "ask"; "--dry-run" |] boundary.option_argv;
+  assert_equal_string_list [ "--literal"; "prompt" ] boundary.message_words
+
+let argument_boundary_when_value_option_missing_keeps_option_for_cmdliner_error
+    () =
+  let boundary = Boundary.split [| "ask"; "--model" |] in
+  assert_equal_string_array [| "ask"; "--model" |] boundary.option_argv;
+  assert_equal_string_list [] boundary.message_words
+
 let tests =
   [
     ( "CodexCommand-WhenDefaultAskProvided-BuildsCodexExecCommand",
@@ -221,6 +265,15 @@ let tests =
       config_when_unknown_field_present_returns_useful_error );
     ( "Request-WhenConfigOmitsModel-UsesGpt54AndMediumReasoning",
       request_when_config_omits_model_uses_gpt54_and_medium_reasoning );
+    ( "SyntaxHelp-WhenRendered-IncludesUsageAndExamples",
+      syntax_help_when_rendered_includes_usage_and_examples );
+    ( "ArgumentBoundary-WhenFirstPlainTokenSeen-CapturesRestAsPrompt",
+      argument_boundary_when_first_plain_token_seen_captures_rest_as_prompt );
+    ( "ArgumentBoundary-WhenDoubleDashSeen-CapturesFollowingPrompt",
+      argument_boundary_when_double_dash_seen_captures_following_prompt );
+    ( "ArgumentBoundary-WhenValueOptionMissing-KeepsOptionForCmdlinerError",
+      argument_boundary_when_value_option_missing_keeps_option_for_cmdliner_error
+    );
   ]
 
 let run_test (name, test) =

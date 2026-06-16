@@ -14,6 +14,20 @@ codex exec -m gpt-5.4 --ephemeral --skip-git-repo-check -c 'model_reasoning_effo
 
 It is intentionally boring in the good way: one command, a small config file, and no shell-string gymnastics.
 
+Bash supports the natural form:
+
+```sh
+ask why is my dune build failing?
+```
+
+The shell passes those words as separate arguments, and Ask joins them into one prompt. Quote or escape text only when your question includes shell syntax such as `&&`, `|`, `>`, `*`, quotes, variables, or semicolons.
+
+Options must come before the prompt. Ask treats the first non-option token as the beginning of the prompt, and everything after it is prompt text:
+
+```sh
+ask --model gpt-5.4-mini explain why --this is not parsed as an Ask option
+```
+
 ## CLI Surface
 
 ```sh
@@ -36,7 +50,9 @@ Useful options:
 
 The default `--verb ask` is a plain `codex exec` run using `gpt-5.4` with reasoning effort `medium`. `--verb do` also uses `codex exec`, but defaults the Codex sandbox to `workspace-write` unless you specify another sandbox. `--verb review` runs `codex exec review --uncommitted`.
 
-If `MESSAGE` is omitted, Ask passes `-` to Codex, so stdin becomes the prompt:
+If `MESSAGE` is omitted, Ask prints syntax help without calling Codex.
+
+Piped stdin still works well as extra context when you provide a prompt:
 
 ```sh
 git diff | ask summarize this patch

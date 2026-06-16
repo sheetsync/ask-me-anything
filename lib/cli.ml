@@ -165,31 +165,29 @@ let dry_run_term =
   let doc = "Print the Codex command Ask would run, without running it." in
   Arg.(value & flag & info [ "dry-run" ] ~doc)
 
-let message_term =
-  let doc =
-    "Plain English prompt. If omitted, Ask passes '-' to Codex so stdin \
-     becomes the prompt."
-  in
-  Arg.(value & pos_all string [] & info [] ~docv:"MESSAGE" ~doc)
-
 let load_config explicit_path =
   match explicit_path with
   | Some path -> Config.read_file path
   | None -> Config.read_first_existing (Paths.default_config_paths ())
 
 let execute overrides =
-  let* config = load_config overrides.Request.config_path in
-  let request = Request.resolve config overrides in
-  let* command = Codex_command.build request in
-  if request.dry_run then (
-    print_endline (Codex_command.to_shell command);
-    Ok 0)
-  else Ok (Runner.run command)
+  match overrides.Request.message_words with
+  | [] ->
+      Syntax_help.print stdout;
+      Ok 0
+  | _ ->
+      let* config = load_config overrides.Request.config_path in
+      let request = Request.resolve config overrides in
+      let* command = Codex_command.build request in
+      if request.dry_run then (
+        print_endline (Codex_command.to_shell command);
+        Ok 0)
+      else Ok (Runner.run command)
 
-let command_term =
+let command_term message_words =
   let make config_path provider codex_binary verb model reasoning_effort profile
       cwd sandbox search ephemeral skip_git_repo_check color images json dry_run
-      message_words =
+      =
     let overrides =
       {
         Request.config_path;
@@ -221,7 +219,7 @@ let command_term =
     const make $ config_path_term $ provider_term $ codex_binary_term
     $ verb_term $ model_term $ reasoning_effort_term $ profile_term $ cwd_term
     $ sandbox_term $ search_term $ ephemeral_term $ git_check_term $ color_term
-    $ images_term $ json_term $ dry_run_term $ message_term)
+    $ images_term $ json_term $ dry_run_term)
 
 let info =
   let doc = "run a one-shot Codex prompt from plain English" in
@@ -231,6 +229,10 @@ let info =
       `P
         "Ask is a small wrapper around codex exec. The default command is \
          intentionally terse: $(b,ask explain dune files).";
+      `P
+        "Ask treats the first non-option token as the beginning of the prompt. \
+         Everything after that token is prompt text, even if it looks like an \
+         option.";
       `P
         "Configuration is YAML at ~/.config/ask/config.yaml by default. \
          Command line options override configuration file values.";
@@ -258,5 +260,8 @@ codex_extra_args: []|};
   in
   Cmd.info "ask" ~version:"0.1.0" ~doc ~man
 
-let cmd = Cmd.v info command_term
-let run () = Cmd.eval' cmd
+let cmd message_words = Cmd.v info (command_term message_words)
+
+let run () =
+  let boundary = Argument_boundary.split Sys.argv in
+  Cmd.eval' ~argv:boundary.option_argv (cmd boundary.message_words)
